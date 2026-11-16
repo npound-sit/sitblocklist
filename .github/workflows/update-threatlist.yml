@@ -1,0 +1,29 @@
+name: Append IP to Threatlist
+on:
+  repository_dispatch:
+    types: [append-threat-ip]
+
+permissions:
+  contents: write
+
+jobs:
+  update-file:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Append IP and commit
+        run: |
+          IP="${{ github.event.client_payload.ip }}"
+          if [[ "$IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            # Ensure file ends with a newline before appending
+            sed -i -e '$a\' sit-threatlist
+            echo "$IP" >> sit-threatlist
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add sit-threatlist
+            git commit -m "Add $IP to sit-threatlist"
+            git push
+          else
+            echo "Invalid IP payload: $IP"
+            exit 1
+          fi
