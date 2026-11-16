@@ -1,0 +1,45 @@
+name: Deduplicate IP Blocklist
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ipblocklist'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-ipblocklist
+  cancel-in-progress: false
+
+jobs:
+  deduplicate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Remove duplicate IPs and empty lines
+        run: |
+          if [ ! -f ipblocklist ]; then
+            echo "ipblocklist not found."
+            exit 1
+          fi
+
+          # Strip CRLF, trim leading/trailing whitespace, drop empty lines, and deduplicate
+          tr -d '\r' < ipblocklist | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk 'NF && !seen[$0]++' > ipblocklist.tmp
+          mv ipblocklist.tmp ipblocklist
+
+      - name: Commit deduplicated list if changed
+        run: |
+          if [[ -n $(git status --porcelain ipblocklist) ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add ipblocklist
+            git commit -m "Remove duplicate IPs and blank lines from ipblocklist"
+            git push
+          else
+            echo "No duplicates or empty lines found."
+          fi
